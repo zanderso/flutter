@@ -18,7 +18,7 @@ import 'build.dart';
 class BuildMacosCommand extends BuildSubCommand {
   BuildMacosCommand({bool verboseHelp}) {
     usesTargetOption();
-    addBuildModeFlags(verboseHelp: verboseHelp);
+    addBuildModeFlags();
   }
 
   @override
