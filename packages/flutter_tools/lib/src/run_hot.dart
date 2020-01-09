@@ -1060,8 +1060,11 @@ class HotRunner extends ResidentRunner {
     }
     for (final FlutterDevice device in flutterDevices) {
       final String dname = device.device.name;
-      globals.printStatus('An Observatory debugger and profiler on $dname is '
-          'available at:\n${device.vmService.httpAddress}');
+      // Caution: This log line is parsed by device lab tests.
+      globals.printStatus(
+        'An Observatory debugger and profiler on $dname is available at: '
+        '${device.vmService.httpAddress}',
+      );
     }
   }
 

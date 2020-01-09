@@ -194,8 +194,11 @@ class ColdRunner extends ResidentRunner {
     for (final FlutterDevice device in flutterDevices) {
       final String dname = device.device.name;
       if (device.vmService != null) {
-        globals.printStatus('An Observatory debugger and profiler on $dname is '
-          'available at: ${device.vmService.httpAddress}');
+        // Caution: This log line is parsed by device lab tests.
+        globals.printStatus(
+          'An Observatory debugger and profiler on $dname is available at: '
+          '${device.vmService.httpAddress}',
+        );
       }
     }
   }

@@ -389,7 +389,7 @@ void main() {
           CommandHelp.P,
           CommandHelp.a,
           CommandHelp.s,
-          'An Observatory debugger and profiler on null is available at:\nnull',
+          'An Observatory debugger and profiler on null is available at: null',
           ''
         ].join('\n')
     ));
