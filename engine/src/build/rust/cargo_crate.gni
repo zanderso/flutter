@@ -9,14 +9,20 @@ import("//build/rust/config.gni")
 library_configs = [
   "//build/config/coverage:default_coverage",
   "//build/config/compiler:chromium_code",
+  "//build/config/compiler:default_optimization",
+  "//build/config/compiler:disallow_unstable_features",
 ]
 executable_configs = [
   "//build/config/coverage:default_coverage",
   "//build/config/compiler:chromium_code",
+  "//build/config/compiler:default_optimization",
+  "//build/config/compiler:disallow_unstable_features",
 ]
 proc_macro_configs = [
   "//build/config/coverage:default_coverage",
   "//build/config/compiler:chromium_code",
+  "//build/config/compiler:default_optimization",
+  "//build/config/compiler:disallow_unstable_features",
 ]
 
 # Defines a Rust Cargo crate target (rlib, proc-macro, or binary executable).
@@ -96,10 +102,16 @@ template("cargo_crate") {
     if (defined(invoker.edition)) {
       _rustflags += [ "--edition=${invoker.edition}" ]
     }
+    if (defined(invoker.epoch)) {
+      _rustflags += [ "-Cmetadata=${invoker.epoch}" ]
+    }
     if (defined(invoker.features)) {
       foreach(f, invoker.features) {
         _rustflags += [ "--cfg=feature=\"$f\"" ]
       }
+    }
+    if (defined(invoker.rustflags)) {
+      _rustflags += invoker.rustflags
     }
 
     # `proc_macro2` normally runs a Cargo build.rs script to detect whether the
@@ -110,6 +122,15 @@ template("cargo_crate") {
         "--cfg=span_locations",
         "--extern",
         "proc_macro",
+      ]
+    }
+
+    # `crc32fast`'s build.rs enables stabilized ARM64 CRC32 and x86 VPCLMULQDQ
+    # intrinsics on rustc >= 1.89.
+    if (_crate_name == "crc32fast") {
+      _rustflags += [
+        "--cfg=stable_arm_crc32_intrinsics",
+        "--cfg=stable_vpclmulqdq",
       ]
     }
 

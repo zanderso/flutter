@@ -42,7 +42,7 @@
 #include "third_party/skia/include/codec/SkGifDecoder.h"
 #include "third_party/skia/include/codec/SkIcoDecoder.h"
 #include "third_party/skia/include/codec/SkJpegDecoder.h"
-#include "third_party/skia/include/codec/SkPngDecoder.h"
+#include "third_party/skia/include/codec/SkPngRustDecoder.h"
 #include "third_party/skia/include/codec/SkWbmpDecoder.h"
 #include "third_party/skia/include/codec/SkWebpDecoder.h"
 #include "third_party/skia/include/core/SkGraphics.h"
@@ -90,7 +90,7 @@ void RegisterCodecsWithSkia() {
   // If we have data to back it up, we can order these by "frequency used in
   // the wild" for a very small performance bump, but for now we mirror the
   // order Skia had them in.
-  SkCodecs::Register(SkPngDecoder::Decoder());
+  SkCodecs::Register(SkPngRustDecoder::Decoder());
   SkCodecs::Register(SkJpegDecoder::Decoder());
   SkCodecs::Register(SkWebpDecoder::Decoder());
   SkCodecs::Register(SkGifDecoder::Decoder());

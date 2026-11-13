@@ -8,6 +8,7 @@ import("$_skia_root/gn/shared_sources.gni")
 import("$_skia_root/gn/skia.gni")
 import("$_skia_root/gn/toolchain/wasm.gni")
 import("$_skia_root/modules/pathops/pathops.gni")
+import("//build/rust/cxx_library.gni")
 import("flutter_defines.gni")
 
 if (is_fuchsia) {
@@ -555,6 +556,22 @@ optional("xps") {
   sources = skia_xps_sources
 }
 
+optional("png_decode_common") {
+  enabled = skia_use_libpng_decode || skia_use_rust_png_decode
+  public_defines = [
+    "SK_CODEC_DECODES_PNG",
+    "SK_CODEC_DECODES_ICO",
+  ]
+  if (skia_use_libpng_decode) {
+    public_defines += [ "SK_CODEC_DECODES_PNG_WITH_LIBPNG" ]
+  }
+  if (skia_use_rust_png_decode) {
+    public_defines += [ "SK_CODEC_DECODES_PNG_WITH_RUST" ]
+  }
+  public = skia_codec_png_public
+  sources = [ "$_skia_root/src/codec/SkIcoCodec.cpp" ] + skia_codec_png_base
+}
+
 optional("png_decode_libpng") {
   enabled = skia_use_libpng_decode
   public_defines = [
@@ -563,9 +580,51 @@ optional("png_decode_libpng") {
     "SK_CODEC_DECODES_PNG_WITH_LIBPNG",
   ]
 
-  deps = [ "//flutter/third_party/libpng" ]
-  sources = [ "$_skia_root/src/codec/SkIcoCodec.cpp" ] + skia_codec_png_base +
-            skia_codec_libpng_srcs
+  deps = [
+    ":png_decode_common",
+    "//flutter/third_party/libpng",
+  ]
+  sources = skia_codec_libpng_srcs
+}
+
+if (skia_use_rust_png_decode) {
+  rust_cxx_library("skia_rust_common") {
+    crate_type = "rlib"
+    crate_root = "$_skia_root/rust/common/io_traits_ffi.rs"
+    sources = [ "$_skia_root/rust/common/io_traits_ffi.rs" ]
+    cxx_header_relpath = "rust/common/io_traits_ffi.rs"
+    rustflags = [ "--cfg=cxxbridge1" ]
+    configs = skia_library_configs
+    cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+
+  rust_cxx_library("skia_rust_png_ffi") {
+    crate_root = "$_skia_root/rust/png/FFI.rs"
+    sources = [ "$_skia_root/rust/png/FFI.rs" ]
+    cxx_header_relpath = "rust/png/FFI.rs"
+    deps = [
+      ":skia_rust_common_rust",
+      "//third_party/rust/png/v0_18:lib",
+    ]
+    configs = skia_library_configs
+    cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+}
+
+optional("png_decode_rust") {
+  enabled = skia_use_rust_png_decode
+  public_defines = [
+    "SK_CODEC_DECODES_PNG",
+    "SK_CODEC_DECODES_ICO",
+    "SK_CODEC_DECODES_PNG_WITH_RUST",
+  ]
+  public = skia_codec_rust_png_public + skia_rust_common_ffi_cpp_hdrs
+  sources = skia_codec_rust_png + skia_rust_common_ffi_cpp_srcs
+  deps = [
+    ":png_decode_common",
+    ":skia_rust_common",
+    ":skia_rust_png_ffi",
+  ]
 }
 
 optional("png_encode") {
@@ -648,6 +707,7 @@ skia_component("skia") {
     ":fontmgr_win",
     ":gpu",
     ":jpeg_encode",
+    ":png_decode_rust",
     ":png_encode",
     ":webp_encode",
     ":xps",
