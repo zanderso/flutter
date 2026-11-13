@@ -587,7 +587,7 @@ optional("png_decode_libpng") {
   sources = skia_codec_libpng_srcs
 }
 
-if (skia_use_rust_png_decode) {
+if (skia_use_rust_png_decode || skia_use_rust_png_encode) {
   rust_cxx_library("skia_rust_common") {
     crate_type = "rlib"
     crate_root = "$_skia_root/rust/common/io_traits_ffi.rs"
@@ -611,6 +611,13 @@ if (skia_use_rust_png_decode) {
   }
 }
 
+optional("rust_common") {
+  enabled = skia_use_rust_png_decode || skia_use_rust_png_encode
+  public = skia_rust_common_ffi_cpp_hdrs
+  sources = skia_rust_common_ffi_cpp_srcs
+  deps = [ ":skia_rust_common" ]
+}
+
 optional("png_decode_rust") {
   enabled = skia_use_rust_png_decode
   public_defines = [
@@ -618,13 +625,18 @@ optional("png_decode_rust") {
     "SK_CODEC_DECODES_ICO",
     "SK_CODEC_DECODES_PNG_WITH_RUST",
   ]
-  public = skia_codec_rust_png_public + skia_rust_common_ffi_cpp_hdrs
-  sources = skia_codec_rust_png + skia_rust_common_ffi_cpp_srcs
+  public = skia_codec_rust_png_public
+  sources = skia_codec_rust_png
   deps = [
     ":png_decode_common",
-    ":skia_rust_common",
+    ":rust_common",
     ":skia_rust_png_ffi",
   ]
+}
+
+optional("png_encode_common") {
+  enabled = skia_use_libpng_encode || skia_use_rust_png_encode
+  sources = skia_encode_png_base
 }
 
 optional("png_encode") {
@@ -635,8 +647,27 @@ optional("png_encode") {
   ]
 
   public = skia_encode_libpng_public
-  deps = [ "//flutter/third_party/libpng" ]
-  sources = skia_encode_png_base + skia_encode_libpng_srcs
+  deps = [
+    ":png_encode_common",
+    "//flutter/third_party/libpng",
+  ]
+  sources = skia_encode_libpng_srcs
+}
+
+optional("png_encode_rust") {
+  enabled = skia_use_rust_png_encode && !skia_use_ndk_images
+  public_defines = [
+    "SK_CODEC_ENCODES_PNG",
+    "SK_CODEC_ENCODES_PNG_WITH_RUST",
+  ]
+
+  public = skia_encode_rust_png_public
+  deps = [
+    ":png_encode_common",
+    ":rust_common",
+    ":skia_rust_png_ffi",
+  ]
+  sources = skia_encode_rust_png_srcs
 }
 
 optional("typeface_freetype") {
@@ -680,7 +711,11 @@ optional("xml") {
   enabled = skia_use_expat || skia_use_jpeg_gainmaps
   public_defines = [ "SK_XML" ]
 
-  deps = [ "//flutter/third_party/expat" ]
+  deps = [
+    ":png_encode",
+    ":png_encode_rust",
+    "//flutter/third_party/expat",
+  ]
   sources = skia_xml_sources + skia_codec_xmp + [
               "$_skia_root/src/svg/SkSVGCanvas.cpp",
               "$_skia_root/src/svg/SkSVGDevice.cpp",
@@ -709,6 +744,7 @@ skia_component("skia") {
     ":jpeg_encode",
     ":png_decode_rust",
     ":png_encode",
+    ":png_encode_rust",
     ":webp_encode",
     ":xps",
   ]
