@@ -81,9 +81,15 @@ proc_macro_configs = [
 template("cargo_crate") {
   not_needed(invoker, "*")
 
-  # Procedural macros execute on the host during compilation, so redirect any
-  # target-toolchain dependency on a proc-macro crate to the host toolchain.
-  if (invoker.crate_type == "proc-macro" && current_toolchain != host_toolchain) {
+  # `gnrt` generates duplicate `cargo_crate("buildrs_support")` targets in the
+  # same BUILD.gn for crates used by Cargo build.rs scripts; since we do not
+  # compile build.rs scripts, stub them out to avoid output file collisions
+  # with `cargo_crate("lib")`.
+  if (target_name == "buildrs_support") {
+    group(target_name) {
+    }
+  } else if (invoker.crate_type == "proc-macro" &&
+             current_toolchain != host_toolchain) {
     group(target_name) {
       public_deps = [ ":$target_name($host_toolchain)" ]
     }
@@ -126,6 +132,17 @@ template("cargo_crate") {
           _rustflags += [ "-Copt-level=2" ]
         }
       }
+    }
+
+    # Use `-Copt-level=s` (`optsize`, inline threshold 75) on Fontations crates
+    # instead of Android's default `-Copt-level=z` (`minsize`, inline threshold 5)
+    # so small OpenType table accessors in `read_fonts` and `skrifa` inline
+    # cleanly without `-O3` code size bloat.
+    if (!is_debug &&
+        (_crate_name == "font_types" || _crate_name == "read_fonts" ||
+         _crate_name == "skrifa" || _crate_name == "bytemuck" ||
+         _crate_name == "foldhash" || _crate_name == "smallvec")) {
+      _rustflags += [ "-Copt-level=s" ]
     }
 
     # Enable `png`'s `std::simd` (`portable_simd`) Paeth row unfiltering.
@@ -176,6 +193,26 @@ template("cargo_crate") {
             "pub mod __private205 {",
             "    #[doc(hidden)]",
             "    pub use crate::private::*;",
+            "}",
+          ])
+    }
+
+    # `rustversion` includes `$OUT_DIR/version.expr` which is normally generated
+    # by its Cargo build.rs script from `rustc --version`.
+    if (_crate_name == "rustversion") {
+      write_file(
+          "$target_gen_dir/version.expr",
+          [
+            "crate::version::Version {",
+            "    minor: 102,",
+            "    patch: 0,",
+            "    channel: crate::version::Channel::Nightly(",
+            "        crate::date::Date {",
+            "            year: 2026,",
+            "            month: 11,",
+            "            day: 12,",
+            "        },",
+            "    ),",
             "}",
           ])
     }

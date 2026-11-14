@@ -599,6 +599,7 @@ if (skia_use_rust_png_decode || skia_use_rust_png_encode) {
   }
 
   rust_cxx_library("skia_rust_png_ffi") {
+    crate_type = "rlib"
     crate_root = "$_skia_root/rust/png/FFI.rs"
     sources = [ "$_skia_root/rust/png/FFI.rs" ]
     cxx_header_relpath = "rust/png/FFI.rs"
@@ -613,6 +614,48 @@ if (skia_use_rust_png_decode || skia_use_rust_png_encode) {
     ]
     configs = skia_library_configs
     cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+
+  _skia_rust_flags = [
+                       "--edition=2021",
+                       "--sysroot=$rebased_local_rustc_sysroot",
+                       "--cfg=skia_rust_png",
+                     ] + rust_mode_flags
+  _skia_rust_deps = [
+    ":skia_rust_png_ffi_rust",
+    "//build/rust/std",
+    "//flutter/rust:flutter_rust_rust",
+  ]
+  if (!is_debug && current_toolchain == default_toolchain) {
+    _skia_rust_flags += [
+      "-Copt-level=3",
+      "-Clto=fat",
+    ]
+  }
+
+  if (is_win) {
+    _skia_rust_archive = "$target_out_dir/skia_rust_ffi.lib"
+  } else {
+    _skia_rust_archive = "$target_out_dir/libskia_rust_ffi.a"
+  }
+
+  static_library("skia_rust_ffi") {
+    crate_name = "skia_rust_ffi"
+    crate_root = "skia_rust_ffi.rs"
+    sources = [ "skia_rust_ffi.rs" ]
+    inputs = [ "$local_rustc_sysroot_lib_dir/libstd.rlib" ]
+    deps = _skia_rust_deps
+    rustflags = _skia_rust_flags
+  }
+
+  config("skia_rust_ffi_config") {
+    libs = [ _skia_rust_archive ]
+  }
+
+  source_set("skia_rust_staticlib") {
+    deps = [ ":skia_rust_ffi" ]
+    public_configs = [ ":skia_rust_ffi_config" ]
+    all_dependent_configs = [ ":skia_rust_ffi_config" ]
   }
 }
 
@@ -636,6 +679,7 @@ optional("png_decode_rust") {
     ":png_decode_common",
     ":rust_common",
     ":skia_rust_png_ffi",
+    ":skia_rust_staticlib",
   ]
 }
 
@@ -671,6 +715,7 @@ optional("png_encode_rust") {
     ":png_encode_common",
     ":rust_common",
     ":skia_rust_png_ffi",
+    ":skia_rust_staticlib",
   ]
   sources = skia_encode_rust_png_srcs
 }
