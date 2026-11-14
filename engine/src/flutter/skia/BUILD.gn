@@ -602,6 +602,11 @@ if (skia_use_rust_png_decode || skia_use_rust_png_encode) {
     crate_root = "$_skia_root/rust/png/FFI.rs"
     sources = [ "$_skia_root/rust/png/FFI.rs" ]
     cxx_header_relpath = "rust/png/FFI.rs"
+    if (!is_debug) {
+      # Optimize generic `png::Reader<BufReader<...>>` and `png::Writer<...>`
+      # instantiations monomorphized into `skia_rust_png_ffi` for speed.
+      rustflags = [ "-Copt-level=3" ]
+    }
     deps = [
       ":skia_rust_common_rust",
       "//third_party/rust/png/v0_18:lib",

@@ -13,6 +13,10 @@ if (is_ios) {
   import("//build/config/darwin/darwin_sdk.gni")
 }
 
+if (current_cpu == "arm") {
+  import("//build/config/arm.gni")
+}
+
 # Select the CIPD host Rust toolchain directory under //flutter/buildtools/
 # matching the current host OS and CPU.
 if (host_os == "linux") {
@@ -133,6 +137,14 @@ rust_optimize_for_size =
     (is_android || is_ios || is_fuchsia || is_win || optimize_for_size)
 
 rust_mode_flags = [ "--target=$rust_target_triple" ]
+
+if (current_cpu == "arm" && arm_use_neon) {
+  # Rust's `armv7-linux-androideabi` and `armv7-unknown-linux-gnueabihf` target
+  # specs do not enable `target_feature = "neon"` by default. Match C/C++
+  # (`-mfpu=neon` when `arm_use_neon` is true) so crates and LLVM
+  # auto-vectorization can emit ARMv7 NEON instructions.
+  rust_mode_flags += [ "-Ctarget-feature=+neon" ]
+}
 
 if (is_debug) {
   # Unoptimized debug build (`--unoptimized` / `is_debug = true`).

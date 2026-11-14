@@ -114,6 +114,28 @@ template("cargo_crate") {
       _rustflags += invoker.rustflags
     }
 
+    # Honor per-crate optimization overrides from `gnrt`-generated BUILD.gn files
+    # (such as `png`, `fdeflate`, `miniz_oxide`, and `flate2`, which replace
+    # `default_optimization` with `optimize_speed` or `optimize`).
+    if (!is_debug && defined(invoker.library_configs)) {
+      foreach(cfg, invoker.library_configs) {
+        if (cfg == "//build/config/compiler:optimize_speed" ||
+            cfg == "//build/config/compiler:optimize_max") {
+          _rustflags += [ "-Copt-level=3" ]
+        } else if (cfg == "//build/config/compiler:optimize") {
+          _rustflags += [ "-Copt-level=2" ]
+        }
+      }
+    }
+
+    # Enable `png`'s `std::simd` (`portable_simd`) Paeth row unfiltering.
+    if (_crate_name == "png") {
+      _rustflags += [
+        "--cfg=feature=\"unstable\"",
+        "-Zallow-features=portable_simd",
+      ]
+    }
+
     # `proc_macro2` normally runs a Cargo build.rs script to detect whether the
     # toolchain's `proc_macro` crate is available; pass those flags directly.
     if (_crate_name == "proc_macro2") {
