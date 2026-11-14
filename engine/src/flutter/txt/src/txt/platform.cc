@@ -4,7 +4,9 @@
 
 #include "txt/platform.h"
 
-#if defined(SK_FONTMGR_FREETYPE_EMPTY_AVAILABLE)
+#if defined(SK_FONTMGR_FONTATIONS_AVAILABLE)
+#include "third_party/skia/include/ports/SkFontMgr_Fontations.h"
+#elif defined(SK_FONTMGR_FREETYPE_EMPTY_AVAILABLE)
 #include "third_party/skia/include/ports/SkFontMgr_empty.h"
 #endif
 
@@ -15,7 +17,9 @@ std::vector<std::string> GetDefaultFontFamilies() {
 }
 
 sk_sp<SkFontMgr> GetDefaultFontManager(uint32_t font_initialization_data) {
-#if defined(SK_FONTMGR_FREETYPE_EMPTY_AVAILABLE)
+#if defined(SK_FONTMGR_FONTATIONS_AVAILABLE)
+  static sk_sp<SkFontMgr> mgr = SkFontMgr_New_Fontations_Empty();
+#elif defined(SK_FONTMGR_FREETYPE_EMPTY_AVAILABLE)
   static sk_sp<SkFontMgr> mgr = SkFontMgr_New_Custom_Empty();
 #else
   static sk_sp<SkFontMgr> mgr = SkFontMgr::RefEmpty();

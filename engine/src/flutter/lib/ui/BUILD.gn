@@ -296,7 +296,6 @@ if (enable_unittests) {
       "//flutter/testing",
       "//flutter/testing:dart",
       "//flutter/testing:fixture_test",
-      "//flutter/third_party/libpng",
       "//flutter/third_party/tonic",
     ]
 

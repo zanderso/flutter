@@ -6,14 +6,20 @@
 
 #if defined(SK_FONTMGR_FONTCONFIG_AVAILABLE)
 #include "third_party/skia/include/ports/SkFontMgr_fontconfig.h"
+#if defined(SK_TYPEFACE_FACTORY_FONTATIONS)
+#include "third_party/skia/include/ports/SkFontScanner_Fontations.h"
+#else
 #include "third_party/skia/include/ports/SkFontScanner_FreeType.h"
+#endif
 #endif
 
 #if defined(SK_FONTMGR_FREETYPE_DIRECTORY_AVAILABLE)
 #include "third_party/skia/include/ports/SkFontMgr_directory.h"
 #endif
 
-#if defined(SK_FONTMGR_FREETYPE_EMPTY_AVAILABLE)
+#if defined(SK_FONTMGR_FONTATIONS_AVAILABLE)
+#include "third_party/skia/include/ports/SkFontMgr_Fontations.h"
+#elif defined(SK_FONTMGR_FREETYPE_EMPTY_AVAILABLE)
 #include "third_party/skia/include/ports/SkFontMgr_empty.h"
 #endif
 
@@ -26,11 +32,18 @@ std::vector<std::string> GetDefaultFontFamilies() {
 
 sk_sp<SkFontMgr> GetDefaultFontManager(uint32_t font_initialization_data) {
 #if defined(SK_FONTMGR_FONTCONFIG_AVAILABLE)
+#if defined(SK_TYPEFACE_FACTORY_FONTATIONS)
+  static sk_sp<SkFontMgr> mgr =
+      SkFontMgr_New_FontConfig(nullptr, SkFontScanner_Make_Fontations());
+#else
   static sk_sp<SkFontMgr> mgr =
       SkFontMgr_New_FontConfig(nullptr, SkFontScanner_Make_FreeType());
+#endif
 #elif defined(SK_FONTMGR_FREETYPE_DIRECTORY_AVAILABLE)
   static sk_sp<SkFontMgr> mgr =
       SkFontMgr_New_Custom_Directory("/usr/share/fonts/");
+#elif defined(SK_FONTMGR_FONTATIONS_AVAILABLE)
+  static sk_sp<SkFontMgr> mgr = SkFontMgr_New_Fontations_Empty();
 #elif defined(SK_FONTMGR_FREETYPE_EMPTY_AVAILABLE)
   static sk_sp<SkFontMgr> mgr = SkFontMgr_New_Custom_Empty();
 #else
