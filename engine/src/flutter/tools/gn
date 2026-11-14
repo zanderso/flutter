@@ -534,6 +534,21 @@ def to_gn_args(args):
     gn_args['target_cpu'] = get_target_cpu(args)
     gn_args['dart_target_arch'] = gn_args['target_cpu']
 
+  if gn_args['target_os'] in ['android', 'linux', 'fuchsia']:
+    gn_args['skia_use_fontations'] = True
+    gn_args['skia_enable_fontmgr_fontations_empty'] = True
+    if gn_args['target_os'] == 'android':
+      gn_args['skia_enable_fontmgr_android'] = True
+      gn_args['skia_enable_fontmgr_android_ndk'] = True
+      gn_args['skia_enable_fontmgr_custom_directory'] = False
+      gn_args['skia_enable_fontmgr_custom_embedded'] = False
+      gn_args['skia_enable_fontmgr_custom_empty'] = False
+    elif gn_args['target_os'] == 'linux':
+      gn_args['skia_enable_fontmgr_custom_directory'] = True
+      gn_args['skia_enable_fontmgr_custom_embedded'] = True
+      gn_args['skia_enable_fontmgr_custom_empty'] = True
+      gn_args['skia_enable_fontmgr_fontconfig'] = args.enable_fontconfig
+
   if not args.build_engine_artifacts:
     gn_args['flutter_build_engine_artifacts'] = False
 

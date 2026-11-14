@@ -712,7 +712,7 @@ if (skia_use_fontations) {
     sources = skia_ports_fontations_bridge_rust_side_sources
     cxx_header_relpath = "src/ports/fontations/src/ffi.rs"
     if (!is_debug) {
-      rustflags = [ "-Copt-level=3" ]
+      rustflags = [ "-Copt-level=s" ]
     }
     deps = [
       "//third_party/rust/font_types/v0_12:lib",
@@ -778,9 +778,6 @@ if (skia_use_fontations || skia_use_rust_png_decode ||
 optional("typeface_fontations") {
   enabled = skia_use_fontations
   public_defines = [ "SK_TYPEFACE_FACTORY_FONTATIONS" ]
-  if (!is_debug) {
-    cflags = [ "-O3" ]
-  }
   public_deps = [
     ":skia_fontations_ffi",
     ":skia_rust_staticlib",

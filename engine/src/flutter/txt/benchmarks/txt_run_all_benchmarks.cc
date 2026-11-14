@@ -8,10 +8,17 @@
 #include "flutter/testing/testing.h"
 #include "flutter/txt/tests/txt_test_utils.h"
 #include "third_party/benchmark/include/benchmark/benchmark.h"
+#if defined(SK_CODEC_DECODES_PNG_WITH_RUST)
+#include "third_party/skia/include/codec/SkCodec.h"
+#include "third_party/skia/include/codec/SkPngRustDecoder.h"
+#endif
 
 // We will use a custom main to allow custom font directories for consistency.
 int main(int argc, char** argv) {
   ::benchmark::Initialize(&argc, argv);
+#if defined(SK_CODEC_DECODES_PNG_WITH_RUST)
+  SkCodecs::Register(SkPngRustDecoder::Decoder());
+#endif
   fml::CommandLine cmd = fml::CommandLineFromPlatformOrArgcArgv(argc, argv);
   txt::SetFontDir(flutter::testing::GetFixturesPath());
   if (txt::GetFontDir().length() <= 0) {
