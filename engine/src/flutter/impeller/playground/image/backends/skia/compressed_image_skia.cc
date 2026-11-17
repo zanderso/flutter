@@ -7,11 +7,11 @@
 #include <memory>
 
 #include "impeller/base/validation.h"
+#include "third_party/skia/experimental/rust_jpeg/decoder/SkJpegRustDecoder.h"
 #include "third_party/skia/include/codec/SkBmpDecoder.h"
 #include "third_party/skia/include/codec/SkCodec.h"
 #include "third_party/skia/include/codec/SkGifDecoder.h"
 #include "third_party/skia/include/codec/SkIcoDecoder.h"
-#include "third_party/skia/include/codec/SkJpegDecoder.h"
 #include "third_party/skia/include/codec/SkPngDecoder.h"
 #include "third_party/skia/include/codec/SkWbmpDecoder.h"
 #include "third_party/skia/include/codec/SkWebpDecoder.h"
@@ -62,8 +62,8 @@ DecompressedImage CompressedImageSkia::Decode() const {
     codec = SkGifDecoder::Decode(sk_data, nullptr);
   } else if (SkIcoDecoder::IsIco(sk_data->bytes(), sk_data->size())) {
     codec = SkIcoDecoder::Decode(sk_data, nullptr);
-  } else if (SkJpegDecoder::IsJpeg(sk_data->bytes(), sk_data->size())) {
-    codec = SkJpegDecoder::Decode(sk_data, nullptr);
+  } else if (SkJpegRustDecoder::IsJpeg(sk_data->bytes(), sk_data->size())) {
+    codec = SkJpegRustDecoder::Decode(sk_data, nullptr);
   } else if (SkPngDecoder::IsPng(sk_data->bytes(), sk_data->size())) {
     codec = SkPngDecoder::Decode(sk_data, nullptr);
   } else if (SkWebpDecoder::IsWebp(sk_data->bytes(), sk_data->size())) {

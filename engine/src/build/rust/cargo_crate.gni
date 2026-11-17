@@ -9,14 +9,20 @@ import("//build/rust/config.gni")
 library_configs = [
   "//build/config/coverage:default_coverage",
   "//build/config/compiler:chromium_code",
+  "//build/config/compiler:default_optimization",
+  "//build/config/compiler:disallow_unstable_features",
 ]
 executable_configs = [
   "//build/config/coverage:default_coverage",
   "//build/config/compiler:chromium_code",
+  "//build/config/compiler:default_optimization",
+  "//build/config/compiler:disallow_unstable_features",
 ]
 proc_macro_configs = [
   "//build/config/coverage:default_coverage",
   "//build/config/compiler:chromium_code",
+  "//build/config/compiler:default_optimization",
+  "//build/config/compiler:disallow_unstable_features",
 ]
 
 # Defines a Rust Cargo crate target (rlib, proc-macro, or binary executable).
@@ -75,9 +81,15 @@ proc_macro_configs = [
 template("cargo_crate") {
   not_needed(invoker, "*")
 
-  # Procedural macros execute on the host during compilation, so redirect any
-  # target-toolchain dependency on a proc-macro crate to the host toolchain.
-  if (invoker.crate_type == "proc-macro" && current_toolchain != host_toolchain) {
+  # `gnrt` generates duplicate `cargo_crate("buildrs_support")` targets in the
+  # same BUILD.gn for crates used by Cargo build.rs scripts; since we do not
+  # compile build.rs scripts, stub them out to avoid output file collisions
+  # with `cargo_crate("lib")`.
+  if (target_name == "buildrs_support") {
+    group(target_name) {
+    }
+  } else if (invoker.crate_type == "proc-macro" &&
+             current_toolchain != host_toolchain) {
     group(target_name) {
       public_deps = [ ":$target_name($host_toolchain)" ]
     }
@@ -96,10 +108,48 @@ template("cargo_crate") {
     if (defined(invoker.edition)) {
       _rustflags += [ "--edition=${invoker.edition}" ]
     }
+    if (defined(invoker.epoch)) {
+      _rustflags += [ "-Cmetadata=${invoker.epoch}" ]
+    }
     if (defined(invoker.features)) {
       foreach(f, invoker.features) {
-        _rustflags += [ "--cfg=feature=\"$f\"" ]
+        # Omit `zune_jpeg`'s non-default `arith` (arithmetic coding) feature:
+        # Flutter's `libjpeg-turbo` build never enabled `D_ARITH_CODING_SUPPORTED`,
+        # and `arith` duplicates every generic `JpegDecoder<T>` MCU loop across
+        # `BitStreamArithmetic` in addition to `BitStreamHuffman` (~50 KiB).
+        if (!(_crate_name == "zune_jpeg" && f == "arith")) {
+          _rustflags += [ "--cfg=feature=\"$f\"" ]
+        }
       }
+    }
+    if (defined(invoker.rustflags)) {
+      _rustflags += invoker.rustflags
+    }
+
+    # Honor per-crate optimization overrides from `gnrt`-generated BUILD.gn files.
+    if (!is_debug && defined(invoker.library_configs)) {
+      foreach(cfg, invoker.library_configs) {
+        if (cfg == "//build/config/compiler:optimize_speed" ||
+            cfg == "//build/config/compiler:optimize_max") {
+          _rustflags += [ "-Copt-level=3" ]
+        } else if (cfg == "//build/config/compiler:optimize") {
+          _rustflags += [ "-Copt-level=2" ]
+        }
+      }
+    }
+
+    # Use `-Copt-level=s` (`optsize`, inline threshold 75) on Rust JPEG crates
+    # instead of Android's default `-Copt-level=z` (`minsize`, inline threshold 5)
+    # so small bitstream helpers inline cleanly without `-O3` code size bloat.
+    if (!is_debug &&
+        (_crate_name == "zune_core" || _crate_name == "zune_jpeg" ||
+         _crate_name == "jpeg_encoder")) {
+      _rustflags += [ "-Copt-level=s" ]
+    }
+
+    # Enable `jpeg-encoder`'s `simd` feature (AVX2 FDCT and RGB->YCbCr on x86).
+    if (_crate_name == "jpeg_encoder") {
+      _rustflags += [ "--cfg=feature=\"simd\"" ]
     }
 
     # `proc_macro2` normally runs a Cargo build.rs script to detect whether the
@@ -133,6 +183,26 @@ template("cargo_crate") {
             "pub mod __private205 {",
             "    #[doc(hidden)]",
             "    pub use crate::private::*;",
+            "}",
+          ])
+    }
+
+    # `rustversion` includes `$OUT_DIR/version.expr` which is normally generated
+    # by its Cargo build.rs script from `rustc --version`.
+    if (_crate_name == "rustversion") {
+      write_file(
+          "$target_gen_dir/version.expr",
+          [
+            "crate::version::Version {",
+            "    minor: 102,",
+            "    patch: 0,",
+            "    channel: crate::version::Channel::Nightly(",
+            "        crate::date::Date {",
+            "            year: 2026,",
+            "            month: 11,",
+            "            day: 12,",
+            "        },",
+            "    ),",
             "}",
           ])
     }

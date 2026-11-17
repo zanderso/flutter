@@ -4,6 +4,7 @@
 
 _skia_root = "//flutter/third_party/skia"
 
+import("//build/rust/cxx_library.gni")
 import("$_skia_root/gn/shared_sources.gni")
 import("$_skia_root/gn/skia.gni")
 import("$_skia_root/gn/toolchain/wasm.gni")
@@ -537,6 +538,122 @@ optional("jpeg_encode") {
   sources = skia_encode_jpeg_srcs
 }
 
+if (skia_use_rust_jpeg_decode || skia_use_rust_jpeg_encode) {
+  rust_cxx_library("skia_rust_common") {
+    crate_type = "rlib"
+    crate_root = "$_skia_root/rust/common/io_traits_ffi.rs"
+    sources = [ "$_skia_root/rust/common/io_traits_ffi.rs" ]
+    cxx_header_relpath = "rust/common/io_traits_ffi.rs"
+    rustflags = [ "--cfg=cxxbridge1" ]
+    configs = skia_library_configs
+    cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+
+  rust_cxx_library("skia_rust_jpeg_ffi") {
+    crate_type = "rlib"
+    crate_root = skia_codec_rust_jpeg_ffi_crate_root
+    sources = skia_codec_rust_jpeg_ffi_rs_srcs
+    cxx_header_relpath = "experimental/rust_jpeg/ffi/FFI.rs"
+    if (!is_debug) {
+      rustflags = [ "-Copt-level=s" ]
+    }
+    deps = [
+      ":skia_rust_common_rust",
+      "//third_party/rust/jpeg_encoder/v0_7:lib",
+      "//third_party/rust/zune_core/v0_5:lib",
+      "//third_party/rust/zune_jpeg/v0_5:lib",
+    ]
+    configs = skia_library_configs
+    cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+
+  _skia_rust_flags = [
+                       "--edition=2021",
+                       "--sysroot=$rebased_local_rustc_sysroot",
+                       "--cfg=skia_rust_jpeg",
+                     ] + rust_mode_flags
+  _skia_rust_deps = [
+    ":skia_rust_jpeg_ffi_rust",
+    "//build/rust/std",
+    "//flutter/rust:flutter_rust_rust",
+  ]
+  if (!is_debug && current_toolchain == default_toolchain) {
+    _skia_rust_flags += [
+      "-Copt-level=3",
+      "-Clto=fat",
+    ]
+  }
+
+  if (is_win) {
+    _skia_rust_archive = "$target_out_dir/skia_rust_ffi.lib"
+  } else {
+    _skia_rust_archive = "$target_out_dir/libskia_rust_ffi.a"
+  }
+
+  static_library("skia_rust_ffi") {
+    crate_name = "skia_rust_ffi"
+    crate_root = "skia_rust_ffi.rs"
+    sources = [ "skia_rust_ffi.rs" ]
+    inputs = [ "$local_rustc_sysroot_lib_dir/libstd.rlib" ]
+    deps = _skia_rust_deps
+    rustflags = _skia_rust_flags
+  }
+
+  config("skia_rust_ffi_config") {
+    libs = [ _skia_rust_archive ]
+  }
+
+  source_set("skia_rust_staticlib") {
+    deps = [ ":skia_rust_ffi" ]
+    public_configs = [ ":skia_rust_ffi_config" ]
+    all_dependent_configs = [ ":skia_rust_ffi_config" ]
+  }
+}
+
+optional("rust_common") {
+  enabled = skia_use_rust_jpeg_decode || skia_use_rust_jpeg_encode
+  public = skia_rust_common_ffi_cpp_hdrs
+  sources = skia_rust_common_ffi_cpp_srcs
+  deps = [ ":skia_rust_common" ]
+}
+
+optional("jpeg_decode_rust") {
+  enabled = skia_use_rust_jpeg_decode
+  public_defines = [
+    "SK_CODEC_DECODES_JPEG",
+    "SK_CODEC_DECODES_JPEG_WITH_RUST",
+  ]
+  public = skia_codec_rust_jpeg_public
+  sources = skia_codec_rust_jpeg
+  deps = [
+    ":jpeg_encode_rust",
+    ":rust_common",
+    ":skia_rust_jpeg_ffi",
+    ":skia_rust_staticlib",
+    "modules/skcms",
+  ]
+  if (skia_use_jpeg_gainmaps) {
+    public_defines += [ "SK_CODEC_DECODES_JPEG_GAINMAPS" ]
+    deps += [ ":xml" ]
+    sources += skia_codec_jpeg_xmp
+  }
+}
+
+optional("jpeg_encode_rust") {
+  enabled = skia_use_rust_jpeg_encode && !skia_use_ndk_images
+  public_defines = [
+    "SK_CODEC_ENCODES_JPEG",
+    "SK_CODEC_ENCODES_JPEG_WITH_RUST",
+  ]
+  public = skia_encode_rust_jpeg_public + skia_encode_jpeg_public
+  sources = skia_encode_rust_jpeg_srcs
+  deps = [
+    ":rust_common",
+    ":skia_rust_jpeg_ffi",
+    ":skia_rust_staticlib",
+  ]
+}
+
 optional("ndk_images") {
   enabled = skia_use_ndk_images
   public_defines = [ "SK_ENABLE_NDK_IMAGES" ]
@@ -647,7 +764,9 @@ skia_component("skia") {
     ":fontmgr_mac_ct",
     ":fontmgr_win",
     ":gpu",
+    ":jpeg_decode_rust",
     ":jpeg_encode",
+    ":jpeg_encode_rust",
     ":png_encode",
     ":webp_encode",
     ":xps",
