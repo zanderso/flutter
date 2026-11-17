@@ -40,9 +40,8 @@ std::vector<std::string> GetDefaultFontFamilies() {
 sk_sp<SkFontMgr> GetDefaultFontManager(uint32_t font_initialization_data) {
 #if defined(SK_CODEC_DECODES_PNG_WITH_RUST)
   static std::once_flag register_png_once;
-  std::call_once(register_png_once, []() {
-    SkCodecs::Register(SkPngRustDecoder::Decoder());
-  });
+  std::call_once(register_png_once,
+                 []() { SkCodecs::Register(SkPngRustDecoder::Decoder()); });
 #endif
 #if defined(SK_FONTMGR_FONTCONFIG_AVAILABLE)
 #if defined(SK_TYPEFACE_FACTORY_FONTATIONS)

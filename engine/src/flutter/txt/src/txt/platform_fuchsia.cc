@@ -33,9 +33,8 @@ std::vector<std::string> GetDefaultFontFamilies() {
 sk_sp<SkFontMgr> GetDefaultFontManager(uint32_t font_initialization_data) {
 #if defined(SK_CODEC_DECODES_PNG_WITH_RUST)
   static std::once_flag register_png_once;
-  std::call_once(register_png_once, []() {
-    SkCodecs::Register(SkPngRustDecoder::Decoder());
-  });
+  std::call_once(register_png_once,
+                 []() { SkCodecs::Register(SkPngRustDecoder::Decoder()); });
 #endif
   if (font_initialization_data) {
     fuchsia::fonts::ProviderSyncPtr sync_font_provider;
