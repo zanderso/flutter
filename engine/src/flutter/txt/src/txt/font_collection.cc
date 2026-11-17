@@ -26,9 +26,8 @@ namespace txt {
 FontCollection::FontCollection() : enable_font_fallback_(true) {
 #if defined(SK_CODEC_DECODES_PNG_WITH_RUST)
   static std::once_flag register_png_once;
-  std::call_once(register_png_once, []() {
-    SkCodecs::Register(SkPngRustDecoder::Decoder());
-  });
+  std::call_once(register_png_once,
+                 []() { SkCodecs::Register(SkPngRustDecoder::Decoder()); });
 #endif
 }
 

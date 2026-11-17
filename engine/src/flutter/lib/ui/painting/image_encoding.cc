@@ -212,7 +212,8 @@ absl::StatusOr<sk_sp<SkData>> EncodeImage(const sk_sp<SkImage>& raster_image,
 
   switch (format) {
     case kPNG: {
-      auto png_image = SkPngRustEncoder::Encode(nullptr, raster_image.get(), {});
+      auto png_image =
+          SkPngRustEncoder::Encode(nullptr, raster_image.get(), {});
 
       if (png_image == nullptr) {
         return absl::Status(absl::StatusCode::kInternal,
