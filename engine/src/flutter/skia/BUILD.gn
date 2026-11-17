@@ -4,11 +4,11 @@
 
 _skia_root = "//flutter/third_party/skia"
 
+import("//build/rust/cxx_library.gni")
 import("$_skia_root/gn/shared_sources.gni")
 import("$_skia_root/gn/skia.gni")
 import("$_skia_root/gn/toolchain/wasm.gni")
 import("$_skia_root/modules/pathops/pathops.gni")
-import("//build/rust/cxx_library.gni")
 import("flutter_defines.gni")
 
 if (is_fuchsia) {
