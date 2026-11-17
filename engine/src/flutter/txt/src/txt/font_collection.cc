@@ -14,12 +14,22 @@
 #include <vector>
 #include "flutter/fml/logging.h"
 #include "flutter/fml/trace_event.h"
+#if defined(SK_CODEC_DECODES_PNG_WITH_RUST)
+#include "third_party/skia/include/codec/SkCodec.h"
+#include "third_party/skia/include/codec/SkPngRustDecoder.h"
+#endif
 #include "txt/platform.h"
 #include "txt/text_style.h"
 
 namespace txt {
 
-FontCollection::FontCollection() : enable_font_fallback_(true) {}
+FontCollection::FontCollection() : enable_font_fallback_(true) {
+#if defined(SK_CODEC_DECODES_PNG_WITH_RUST)
+  static std::once_flag register_png_once;
+  std::call_once(register_png_once,
+                 []() { SkCodecs::Register(SkPngRustDecoder::Decoder()); });
+#endif
+}
 
 FontCollection::~FontCollection() {
   if (skt_collection_) {

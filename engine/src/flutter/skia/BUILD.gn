@@ -4,6 +4,7 @@
 
 _skia_root = "//flutter/third_party/skia"
 
+import("//build/rust/cxx_library.gni")
 import("$_skia_root/gn/shared_sources.gni")
 import("$_skia_root/gn/skia.gni")
 import("$_skia_root/gn/toolchain/wasm.gni")
@@ -15,13 +16,14 @@ if (is_fuchsia) {
 
   skia_use_gl = false
   skia_use_icu = false
-  skia_use_freetype = true
+  skia_use_freetype = false
+  skia_use_fontations = true
   skia_use_vulkan = true
 
-  # unit tests make use of loading FreeType files directly
-  skia_enable_fontmgr_custom_empty = true
+  skia_enable_fontmgr_custom_empty = false
   skia_enable_fontmgr_custom_directory = false
   skia_enable_fontmgr_custom_embedded = false
+  skia_enable_fontmgr_fontations_empty = true
   skia_use_dng_sdk = false
 }
 
@@ -235,6 +237,7 @@ optional("fontmgr_android") {
   public_defines = [ "SK_FONTMGR_ANDROID_AVAILABLE" ]
 
   deps = [
+    ":typeface_fontations",
     ":typeface_freetype",
     ":typeface_proxy",
     "//flutter/third_party/expat",
@@ -249,7 +252,10 @@ optional("fontmgr_custom") {
       skia_enable_fontmgr_custom_directory ||
       skia_enable_fontmgr_custom_embedded || skia_enable_fontmgr_custom_empty
 
-  deps = [ ":typeface_freetype" ]
+  deps = [
+    ":typeface_fontations",
+    ":typeface_freetype",
+  ]
   sources = skia_ports_fontmgr_custom_sources
 }
 
@@ -258,6 +264,7 @@ optional("fontmgr_custom_directory") {
   public_defines = [ "SK_FONTMGR_FREETYPE_DIRECTORY_AVAILABLE" ]
   deps = [
     ":fontmgr_custom",
+    ":typeface_fontations",
     ":typeface_freetype",
   ]
   public = skia_ports_fontmgr_directory_public
@@ -270,6 +277,7 @@ optional("fontmgr_custom_embedded") {
 
   deps = [
     ":fontmgr_custom",
+    ":typeface_fontations",
     ":typeface_freetype",
   ]
   sources = skia_ports_fontmgr_embedded_sources
@@ -281,10 +289,20 @@ optional("fontmgr_custom_empty") {
 
   deps = [
     ":fontmgr_custom",
+    ":typeface_fontations",
     ":typeface_freetype",
   ]
   public = skia_ports_fontmgr_empty_public
   sources = skia_ports_fontmgr_empty_sources
+}
+
+optional("fontmgr_fontations_empty") {
+  enabled = skia_enable_fontmgr_fontations_empty
+  public_defines = [ "SK_FONTMGR_FONTATIONS_AVAILABLE" ]
+
+  deps = [ ":typeface_fontations" ]
+  public = skia_ports_fontmgr_fontations_public
+  sources = skia_ports_fontmgr_fontations_sources
 }
 
 skia_source_set("typeface_proxy") {
@@ -300,6 +318,7 @@ optional("fontmgr_fontconfig") {
   public_deps = [ "//third_party:fontconfig" ]
   public = skia_ports_fontmgr_fontconfig_public
   deps = [
+    ":typeface_fontations",
     ":typeface_freetype",
     ":typeface_proxy",
   ]
@@ -311,6 +330,7 @@ optional("fontmgr_fuchsia") {
   public_defines = [ "SK_FONTMGR_FUCHSIA_AVAILABLE" ]
 
   deps = [
+    ":typeface_fontations",
     ":typeface_freetype",
     ":typeface_proxy",
   ]
@@ -555,6 +575,22 @@ optional("xps") {
   sources = skia_xps_sources
 }
 
+optional("png_decode_common") {
+  enabled = skia_use_libpng_decode || skia_use_rust_png_decode
+  public_defines = [
+    "SK_CODEC_DECODES_PNG",
+    "SK_CODEC_DECODES_ICO",
+  ]
+  if (skia_use_libpng_decode) {
+    public_defines += [ "SK_CODEC_DECODES_PNG_WITH_LIBPNG" ]
+  }
+  if (skia_use_rust_png_decode) {
+    public_defines += [ "SK_CODEC_DECODES_PNG_WITH_RUST" ]
+  }
+  public = skia_codec_png_public
+  sources = [ "$_skia_root/src/codec/SkIcoCodec.cpp" ] + skia_codec_png_base
+}
+
 optional("png_decode_libpng") {
   enabled = skia_use_libpng_decode
   public_defines = [
@@ -563,9 +599,70 @@ optional("png_decode_libpng") {
     "SK_CODEC_DECODES_PNG_WITH_LIBPNG",
   ]
 
-  deps = [ "//flutter/third_party/libpng" ]
-  sources = [ "$_skia_root/src/codec/SkIcoCodec.cpp" ] + skia_codec_png_base +
-            skia_codec_libpng_srcs
+  deps = [
+    ":png_decode_common",
+    "//flutter/third_party/libpng",
+  ]
+  sources = skia_codec_libpng_srcs
+}
+
+if (skia_use_rust_png_decode || skia_use_rust_png_encode) {
+  rust_cxx_library("skia_rust_common") {
+    crate_type = "rlib"
+    crate_root = "$_skia_root/rust/common/io_traits_ffi.rs"
+    sources = [ "$_skia_root/rust/common/io_traits_ffi.rs" ]
+    cxx_header_relpath = "rust/common/io_traits_ffi.rs"
+    rustflags = [ "--cfg=cxxbridge1" ]
+    configs = skia_library_configs
+    cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+
+  rust_cxx_library("skia_rust_png_ffi") {
+    crate_type = "rlib"
+    crate_root = "$_skia_root/rust/png/FFI.rs"
+    sources = [ "$_skia_root/rust/png/FFI.rs" ]
+    cxx_header_relpath = "rust/png/FFI.rs"
+    if (!is_debug) {
+      # Optimize generic `png::Reader<BufReader<...>>` and `png::Writer<...>`
+      # instantiations monomorphized into `skia_rust_png_ffi` for speed.
+      rustflags = [ "-Copt-level=3" ]
+    }
+    deps = [
+      ":skia_rust_common_rust",
+      "//third_party/rust/png/v0_18:lib",
+    ]
+    configs = skia_library_configs
+    cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+}
+
+optional("rust_common") {
+  enabled = skia_use_rust_png_decode || skia_use_rust_png_encode
+  public = skia_rust_common_ffi_cpp_hdrs
+  sources = skia_rust_common_ffi_cpp_srcs
+  deps = [ ":skia_rust_common" ]
+}
+
+optional("png_decode_rust") {
+  enabled = skia_use_rust_png_decode
+  public_defines = [
+    "SK_CODEC_DECODES_PNG",
+    "SK_CODEC_DECODES_ICO",
+    "SK_CODEC_DECODES_PNG_WITH_RUST",
+  ]
+  public = skia_codec_rust_png_public
+  sources = skia_codec_rust_png
+  deps = [
+    ":png_decode_common",
+    ":rust_common",
+    ":skia_rust_png_ffi",
+    ":skia_rust_staticlib",
+  ]
+}
+
+optional("png_encode_common") {
+  enabled = skia_use_libpng_encode || skia_use_rust_png_encode
+  sources = skia_encode_png_base
 }
 
 optional("png_encode") {
@@ -576,8 +673,28 @@ optional("png_encode") {
   ]
 
   public = skia_encode_libpng_public
-  deps = [ "//flutter/third_party/libpng" ]
-  sources = skia_encode_png_base + skia_encode_libpng_srcs
+  deps = [
+    ":png_encode_common",
+    "//flutter/third_party/libpng",
+  ]
+  sources = skia_encode_libpng_srcs
+}
+
+optional("png_encode_rust") {
+  enabled = skia_use_rust_png_encode && !skia_use_ndk_images
+  public_defines = [
+    "SK_CODEC_ENCODES_PNG",
+    "SK_CODEC_ENCODES_PNG_WITH_RUST",
+  ]
+
+  public = skia_encode_rust_png_public
+  deps = [
+    ":png_encode_common",
+    ":rust_common",
+    ":skia_rust_png_ffi",
+    ":skia_rust_staticlib",
+  ]
+  sources = skia_encode_rust_png_srcs
 }
 
 optional("typeface_freetype") {
@@ -586,6 +703,94 @@ optional("typeface_freetype") {
   public_defines = [ "SK_TYPEFACE_FACTORY_FREETYPE" ]
   deps = [ "//flutter/third_party/freetype2" ]
   sources = skia_ports_freetype_sources
+}
+
+if (skia_use_fontations) {
+  rust_cxx_library("skia_fontations_ffi") {
+    crate_type = "rlib"
+    crate_root = skia_fontations_bridge_root
+    sources = skia_ports_fontations_bridge_rust_side_sources
+    cxx_header_relpath = "src/ports/fontations/src/ffi.rs"
+    if (!is_debug) {
+      rustflags = [ "-Copt-level=s" ]
+    }
+    deps = [
+      "//third_party/rust/font_types/v0_12:lib",
+      "//third_party/rust/read_fonts/v0_46:lib",
+      "//third_party/rust/skrifa/v0_49:lib",
+    ]
+    configs = skia_library_configs
+    cpp_deps = [ "$_skia_root/src/partition_alloc:raw_ptr" ]
+  }
+}
+
+if (skia_use_fontations || skia_use_rust_png_decode ||
+    skia_use_rust_png_encode) {
+  _skia_rust_flags = [
+                       "--edition=2021",
+                       "--sysroot=$rebased_local_rustc_sysroot",
+                     ] + rust_mode_flags
+  _skia_rust_deps = [
+    "//build/rust/std",
+    "//flutter/rust:flutter_rust_rust",
+  ]
+  if (skia_use_rust_png_decode || skia_use_rust_png_encode) {
+    _skia_rust_flags += [ "--cfg=skia_rust_png" ]
+    _skia_rust_deps += [ ":skia_rust_png_ffi_rust" ]
+  }
+  if (skia_use_fontations) {
+    _skia_rust_flags += [ "--cfg=skia_fontations" ]
+    _skia_rust_deps += [ ":skia_fontations_ffi_rust" ]
+  }
+  if (!is_debug && current_toolchain == default_toolchain) {
+    _skia_rust_flags += [
+      "-Copt-level=3",
+      "-Clto=fat",
+    ]
+  }
+
+  if (is_win) {
+    _skia_rust_archive = "$target_out_dir/skia_rust_ffi.lib"
+  } else {
+    _skia_rust_archive = "$target_out_dir/libskia_rust_ffi.a"
+  }
+
+  static_library("skia_rust_ffi") {
+    crate_name = "skia_rust_ffi"
+    crate_root = "skia_rust_ffi.rs"
+    sources = [ "skia_rust_ffi.rs" ]
+    inputs = [ "$local_rustc_sysroot_lib_dir/libstd.rlib" ]
+    deps = _skia_rust_deps
+    rustflags = _skia_rust_flags
+  }
+
+  config("skia_rust_ffi_config") {
+    libs = [ _skia_rust_archive ]
+  }
+
+  source_set("skia_rust_staticlib") {
+    deps = [ ":skia_rust_ffi" ]
+    public_configs = [ ":skia_rust_ffi_config" ]
+    all_dependent_configs = [ ":skia_rust_ffi_config" ]
+  }
+}
+
+optional("typeface_fontations") {
+  enabled = skia_use_fontations
+  public_defines = [ "SK_TYPEFACE_FACTORY_FONTATIONS" ]
+  public_deps = [
+    ":skia_fontations_ffi",
+    ":skia_rust_staticlib",
+  ]
+  deps = []
+  if (skia_use_rust_png_decode) {
+    deps += [ ":png_decode_rust" ]
+  } else if (skia_use_libpng_decode) {
+    deps += [ ":png_decode_libpng" ]
+  } else {
+    assert(!enabled, "Fontations requires a PNG decoder")
+  }
+  sources = skia_ports_typeface_fontations_sources
 }
 
 optional("webp_decode") {
@@ -621,7 +826,11 @@ optional("xml") {
   enabled = skia_use_expat || skia_use_jpeg_gainmaps
   public_defines = [ "SK_XML" ]
 
-  deps = [ "//flutter/third_party/expat" ]
+  deps = [
+    ":png_encode",
+    ":png_encode_rust",
+    "//flutter/third_party/expat",
+  ]
   sources = skia_xml_sources + skia_codec_xmp + [
               "$_skia_root/src/svg/SkSVGCanvas.cpp",
               "$_skia_root/src/svg/SkSVGDevice.cpp",
@@ -642,13 +851,17 @@ skia_component("skia") {
     ":fontmgr_custom_directory",
     ":fontmgr_custom_embedded",
     ":fontmgr_custom_empty",
+    ":fontmgr_fontations_empty",
     ":fontmgr_fontconfig",
     ":fontmgr_fuchsia",
     ":fontmgr_mac_ct",
     ":fontmgr_win",
     ":gpu",
     ":jpeg_encode",
+    ":png_decode_rust",
     ":png_encode",
+    ":png_encode_rust",
+    ":typeface_fontations",
     ":webp_encode",
     ":xps",
   ]

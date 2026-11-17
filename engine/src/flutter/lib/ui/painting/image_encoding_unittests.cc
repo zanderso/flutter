@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "png.h"
-
 #include "flutter/lib/ui/painting/image_encoding.h"
 #include "flutter/lib/ui/painting/image_encoding_impl.h"
+#include "third_party/skia/include/codec/SkCodec.h"
+#include "third_party/skia/include/codec/SkPngRustDecoder.h"
+#include "third_party/skia/include/core/SkStream.h"
 
 #include "flutter/common/task_runners.h"
 #include "flutter/display_list/image/dl_image_skia.h"
@@ -692,76 +693,21 @@ TEST(ImageEncodingImpellerTest, PngEncoding10XR) {
 }
 
 namespace {
-struct PngMemoryReader {
-  const uint8_t* data;
-  size_t offset;
-  size_t size;
-};
-
-void PngMemoryRead(png_structp png_ptr,
-                   png_bytep out_bytes,
-                   png_size_t byte_count_to_read) {
-  PngMemoryReader* memory_reader =
-      reinterpret_cast<PngMemoryReader*>(png_get_io_ptr(png_ptr));
-  if (memory_reader->offset + byte_count_to_read > memory_reader->size) {
-    png_error(png_ptr, "Read error in PngMemoryRead");
-  }
-  memcpy(out_bytes, memory_reader->data + memory_reader->offset,
-         byte_count_to_read);
-  memory_reader->offset += byte_count_to_read;
-}
-
 absl::StatusOr<std::vector<uint32_t>> ReadPngFromMemory(const uint8_t* png_data,
                                                         size_t png_size) {
-  png_structp png =
-      png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-  if (!png) {
+  auto stream = std::make_unique<SkMemoryStream>(png_data, png_size, false);
+  SkCodec::Result codec_result;
+  std::unique_ptr<SkCodec> codec =
+      SkPngRustDecoder::Decode(std::move(stream), &codec_result);
+  if (!codec || codec_result != SkCodec::kSuccess) {
     return absl::Status(absl::StatusCode::kAborted, "unknown");
   }
-
-  png_infop info = png_create_info_struct(png);
-  if (!info) {
-    png_destroy_read_struct(&png, nullptr, nullptr);
+  SkImageInfo info = codec->getInfo().makeColorType(kRGBA_8888_SkColorType);
+  std::vector<uint32_t> result(info.width() * info.height());
+  if (codec->getPixels(info, result.data(), info.minRowBytes()) !=
+      SkCodec::kSuccess) {
     return absl::Status(absl::StatusCode::kAborted, "unknown");
   }
-
-  fml::ScopedCleanupClosure png_cleanup(
-      [&png, &info]() { png_destroy_read_struct(&png, &info, nullptr); });
-
-  if (setjmp(png_jmpbuf(png))) {
-    return absl::Status(absl::StatusCode::kAborted, "unknown");
-  }
-
-  PngMemoryReader memory_reader = {
-      .data = png_data, .offset = 0, .size = png_size};
-  png_set_read_fn(png, &memory_reader, PngMemoryRead);
-
-  png_read_info(png, info);
-
-  int width = png_get_image_width(png, info);
-  int height = png_get_image_height(png, info);
-  png_byte color_type = png_get_color_type(png, info);
-  png_byte bit_depth = png_get_bit_depth(png, info);
-
-  if (bit_depth == 16) {
-    png_set_strip_16(png);
-  }
-  if (color_type == PNG_COLOR_TYPE_PALETTE) {
-    png_set_palette_to_rgb(png);
-  }
-
-  png_read_update_info(png, info);
-  std::vector<uint32_t> result(width * height);
-  std::vector<png_bytep> row_pointers;
-  row_pointers.reserve(height);
-
-  for (int i = 0; i < height; ++i) {
-    row_pointers.push_back(
-        reinterpret_cast<png_bytep>(result.data() + i * width));
-  }
-
-  png_read_image(png, row_pointers.data());
-
   return result;
 }
 }  // namespace

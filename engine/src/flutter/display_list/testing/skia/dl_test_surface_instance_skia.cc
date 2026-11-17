@@ -7,7 +7,7 @@
 #include "flutter/display_list/image/dl_image_skia.h"
 #include "flutter/display_list/skia/dl_sk_conversions.h"
 #include "flutter/fml/safe_math.h"
-#include "third_party/skia/include/encode/SkPngEncoder.h"
+#include "third_party/skia/include/encode/SkPngRustEncoder.h"
 #include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
 
 namespace {
@@ -76,7 +76,7 @@ class DlSkiaPixelData : public flutter::testing::DlPixelData {
   size_t height() const override { return pixmap_.info().height(); }
 
   virtual bool write(const std::string& path) const override {
-    sk_sp<SkData> data = SkPngEncoder::Encode(pixmap_, {});
+    sk_sp<SkData> data = SkPngRustEncoder::Encode(pixmap_, {});
     if (!data) {
       return false;
     }
@@ -140,7 +140,7 @@ bool DlSurfaceInstanceSkiaBase::SnapshotToFile(std::string& filename) const {
   if (!raster) {
     return false;
   }
-  sk_sp<SkData> data = SkPngEncoder::Encode(nullptr, raster.get(), {});
+  sk_sp<SkData> data = SkPngRustEncoder::Encode(nullptr, raster.get(), {});
   if (!data) {
     return false;
   }

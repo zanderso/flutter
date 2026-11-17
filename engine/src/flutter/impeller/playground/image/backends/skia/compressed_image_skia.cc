@@ -12,7 +12,7 @@
 #include "third_party/skia/include/codec/SkGifDecoder.h"
 #include "third_party/skia/include/codec/SkIcoDecoder.h"
 #include "third_party/skia/include/codec/SkJpegDecoder.h"
-#include "third_party/skia/include/codec/SkPngDecoder.h"
+#include "third_party/skia/include/codec/SkPngRustDecoder.h"
 #include "third_party/skia/include/codec/SkWbmpDecoder.h"
 #include "third_party/skia/include/codec/SkWebpDecoder.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -20,6 +20,7 @@
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkPixmap.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
+#include "third_party/skia/include/core/SkStream.h"
 
 namespace impeller {
 
@@ -64,8 +65,8 @@ DecompressedImage CompressedImageSkia::Decode() const {
     codec = SkIcoDecoder::Decode(sk_data, nullptr);
   } else if (SkJpegDecoder::IsJpeg(sk_data->bytes(), sk_data->size())) {
     codec = SkJpegDecoder::Decode(sk_data, nullptr);
-  } else if (SkPngDecoder::IsPng(sk_data->bytes(), sk_data->size())) {
-    codec = SkPngDecoder::Decode(sk_data, nullptr);
+  } else if (SkPngRustDecoder::IsPng(sk_data->bytes(), sk_data->size())) {
+    codec = SkPngRustDecoder::Decode(SkMemoryStream::Make(sk_data), nullptr);
   } else if (SkWebpDecoder::IsWebp(sk_data->bytes(), sk_data->size())) {
     codec = SkWebpDecoder::Decode(sk_data, nullptr);
   } else if (SkWbmpDecoder::IsWbmp(sk_data->bytes(), sk_data->size())) {

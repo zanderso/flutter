@@ -99,10 +99,7 @@ source_set("harfbuzz_sources") {
 
   public_configs = [ ":harfbuzz_config" ]
 
-  deps = [
-    "//third_party/freetype2",
-    "//third_party/icu:icuuc",
-  ]
+  deps = [ "//third_party/icu:icuuc" ]
 }
 
 source_set("harfbuzz_subset") {
@@ -184,10 +181,7 @@ source_set("harfbuzz_subset") {
 
   public_configs = [ ":harfbuzz_config" ]
 
-  deps = [
-    "//third_party/freetype2",
-    "//third_party/icu:icuuc",
-  ]
+  deps = [ "//third_party/icu:icuuc" ]
 }
 
 source_set("harfbuzz") {

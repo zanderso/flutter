@@ -11,7 +11,7 @@
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkPixmap.h"
-#include "third_party/skia/include/encode/SkPngEncoder.h"
+#include "third_party/skia/include/encode/SkPngRustEncoder.h"
 #include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
 #include "third_party/skia/include/gpu/ganesh/SkSurfaceGanesh.h"
 
@@ -56,7 +56,7 @@ static sk_sp<SkData> GetRasterData(const sk_sp<SkSurface>& offscreen_surface,
   // If the caller want the pixels to be compressed, there is a Skia utility to
   // compress to PNG. Use that.
   if (compressed) {
-    return SkPngEncoder::Encode(nullptr, cpu_snapshot.get(), {});
+    return SkPngRustEncoder::Encode(nullptr, cpu_snapshot.get(), {});
   }
 
   // Copy it into a bitmap and return the same.
