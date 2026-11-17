@@ -18,7 +18,7 @@
 #include "third_party/skia/include/core/SkStream.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "third_party/skia/include/core/SkTextBlob.h"
-#include "third_party/skia/include/encode/SkPngEncoder.h"
+#include "third_party/skia/include/encode/SkPngRustEncoder.h"
 
 namespace flutter {
 namespace testing {
@@ -90,7 +90,7 @@ static void TestPerformanceOverlayLayerGold(int refresh_rate) {
 
   sk_sp<SkImage> snapshot = surface->makeImageSnapshot();
   sk_sp<SkData> snapshot_data =
-      SkPngEncoder::Encode(nullptr, snapshot.get(), {});
+      SkPngRustEncoder::Encode(nullptr, snapshot.get(), {});
 
   sk_sp<SkData> golden_data =
       SkData::MakeFromFileName(golden_file_path.c_str());

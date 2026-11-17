@@ -14,7 +14,7 @@
 #endif  // IMPELLER_SUPPORTS_RENDERING
 
 #include "include/core/SkColorType.h"
-#include "third_party/skia/include/codec/SkPngDecoder.h"
+#include "third_party/skia/include/codec/SkPngRustDecoder.h"
 
 namespace flutter {
 namespace testing {
@@ -157,7 +157,7 @@ TEST(ImageDecoderNoGLTest, ImpellerWideGamutDisplayP3) {
 #if defined(OS_FUCHSIA)
   GTEST_SKIP() << "Fuchsia can't load the test fixtures.";
 #endif
-  SkCodecs::Register(SkPngDecoder::Decoder());
+  SkCodecs::Register(SkPngRustDecoder::Decoder());
   auto data = flutter::testing::OpenFixtureAsSkData("DisplayP3Logo.png");
   auto image = SkImages::DeferredFromEncodedData(data);
   std::shared_ptr<impeller::Capabilities> capabilities =
@@ -224,7 +224,7 @@ TEST(ImageDecoderNoGLTest, ImpellerWideGamutIndexedPng) {
 #if defined(OS_FUCHSIA)
   GTEST_SKIP() << "Fuchsia can't load the test fixtures.";
 #endif
-  SkCodecs::Register(SkPngDecoder::Decoder());
+  SkCodecs::Register(SkPngRustDecoder::Decoder());
   auto data = flutter::testing::OpenFixtureAsSkData("WideGamutIndexed.png");
   auto image = SkImages::DeferredFromEncodedData(data);
   std::shared_ptr<impeller::Capabilities> capabilities =
@@ -408,7 +408,7 @@ TEST(ImageDecoderNoGLTest, ImpellerUnmultipliedAlphaPng) {
 #if defined(OS_FUCHSIA)
   GTEST_SKIP() << "Fuchsia can't load the test fixtures.";
 #endif
-  SkCodecs::Register(SkPngDecoder::Decoder());
+  SkCodecs::Register(SkPngRustDecoder::Decoder());
   auto data = flutter::testing::OpenFixtureAsSkData("unmultiplied_alpha.png");
   auto image = SkImages::DeferredFromEncodedData(data);
   std::shared_ptr<impeller::Capabilities> capabilities =
