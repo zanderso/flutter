@@ -27,6 +27,25 @@ import("//build/rust/config.gni")
 #     `cargo_crate` targets). `//build/rust/std` and `//third_party/rust/cxx/v1:lib`
 #     are added automatically.
 #
+#   crate_type (optional)
+#     [string] Either "staticlib" (default) or "rlib" (for intermediate Rust+cxx
+#     crates that are linked into a downstream `staticlib`).
+#
+#   cxx_header_relpath (optional)
+#     [string] Relative path under `$target_gen_dir` (without `.h` / `.cc`) for
+#     the generated cxxbridge files. Defaults to `crate_root`.
+#
+#   rustflags (optional)
+#     [list of strings] Additional flags passed to `rustc`.
+#
+#   configs (optional)
+#     [list of labels] Additional C++ configs applied when compiling the
+#     generated cxxbridge `.cc` file.
+#
+#   cpp_deps (optional)
+#     [list of labels] Additional C++ dependencies needed when compiling the
+#     generated cxxbridge `.cc` file.
+#
 # Example usage:
 #
 #   import("//build/rust/cxx_library.gni")
@@ -38,36 +57,66 @@ import("//build/rust/config.gni")
 #
 #   # C++ targets depending on ":flutter_rust" can then `#include "flutter/rust/bridge.rs.h"`.
 template("rust_cxx_library") {
+  _crate_name = target_name
   _rust_target = "${target_name}_rust"
   _cxxgen_target = "${target_name}_cxxgen"
   _config_target = "${target_name}_config"
 
-  _gen_header = "$target_gen_dir/${invoker.crate_root}.h"
-  _gen_cc = "$target_gen_dir/${invoker.crate_root}.cc"
-  if (is_win) {
-    _rust_archive = "$target_out_dir/${_rust_target}.lib"
-  } else {
-    _rust_archive = "$target_out_dir/lib${_rust_target}.a"
+  _crate_type = "staticlib"
+  if (defined(invoker.crate_type)) {
+    _crate_type = invoker.crate_type
   }
 
-  # Compile the Rust crate as a staticlib (`--crate-type staticlib`) linked
-  # against our source-built `libstd`.
-  static_library(_rust_target) {
-    crate_name = target_name
-    crate_root = invoker.crate_root
-    sources = invoker.sources
-    inputs = [ "$local_rustc_sysroot_lib_dir/libstd.rlib" ]
-    deps = [
-      "//build/rust/std",
-      "//third_party/rust/cxx/v1:lib",
-    ]
-    if (defined(invoker.deps)) {
-      deps += invoker.deps
+  _cxx_relpath = invoker.crate_root
+  if (defined(invoker.cxx_header_relpath)) {
+    _cxx_relpath = invoker.cxx_header_relpath
+  }
+
+  _gen_header = "$target_gen_dir/${_cxx_relpath}.h"
+  _gen_cc = "$target_gen_dir/${_cxx_relpath}.cc"
+
+  _rust_deps = [
+    "//build/rust/std",
+    "//third_party/rust/cxx/v1:lib",
+  ]
+  if (defined(invoker.deps)) {
+    _rust_deps += invoker.deps
+  }
+
+  _rustflags = [
+                 "--edition=2021",
+                 "--sysroot=$rebased_local_rustc_sysroot",
+               ] + rust_mode_flags
+  if (defined(invoker.rustflags)) {
+    _rustflags += invoker.rustflags
+  }
+
+  if (_crate_type == "rlib") {
+    rust_library(_rust_target) {
+      crate_name = _crate_name
+      crate_root = invoker.crate_root
+      sources = invoker.sources
+      inputs = [ "$local_rustc_sysroot_lib_dir/libstd.rlib" ]
+      deps = _rust_deps
+      rustflags = _rustflags
     }
-    rustflags = [
-                  "--edition=2021",
-                  "--sysroot=$rebased_local_rustc_sysroot",
-                ] + rust_mode_flags
+  } else {
+    if (is_win) {
+      _rust_output = "$target_out_dir/${_rust_target}.lib"
+    } else {
+      _rust_output = "$target_out_dir/lib${_rust_target}.a"
+    }
+
+    # Compile the Rust crate as a staticlib (`--crate-type staticlib`) linked
+    # against our source-built `libstd`.
+    static_library(_rust_target) {
+      crate_name = _crate_name
+      crate_root = invoker.crate_root
+      sources = invoker.sources
+      inputs = [ "$local_rustc_sysroot_lib_dir/libstd.rlib" ]
+      deps = _rust_deps
+      rustflags = _rustflags
+    }
   }
 
   # Run the host `cxxbridge` binary to generate the C++ header and source file
@@ -82,13 +131,15 @@ template("rust_cxx_library") {
         get_label_info(
             "//third_party/rust/cxxbridge_cmd/v1:cxxbridge($host_toolchain)",
             "root_out_dir") + "/$_cxxbridge_exe"
-    # List `_rust_archive` in `inputs` so Ninja links the Rust static archive
-    # before compiling/linking downstream C++ targets.
     inputs = [
       cxxbridge_bin,
       invoker.crate_root,
-      _rust_archive,
     ]
+    if (_crate_type == "staticlib") {
+      # List `_rust_output` in `inputs` so Ninja links the Rust static archive
+      # before compiling/linking downstream C++ targets.
+      inputs += [ _rust_output ]
+    }
     outputs = [
       _gen_header,
       _gen_cc,
@@ -113,12 +164,15 @@ template("rust_cxx_library") {
   # dependents.
   config(_config_target) {
     include_dirs = [ target_gen_dir ]
-    libs = [ _rust_archive ]
+    if (_crate_type == "staticlib") {
+      libs = [ _rust_output ]
+    }
   }
 
   # C++ source_set that compiles the generated `cxxbridge` C++ glue and pulls in
   # the `cxx` C++ support library plus the Rust static archive.
   source_set(target_name) {
+    check_includes = false
     sources = [
       _gen_cc,
       _gen_header,
@@ -127,7 +181,17 @@ template("rust_cxx_library") {
       ":$_cxxgen_target",
       "//build/rust:cxx_cpp",
     ]
+    if (defined(invoker.cpp_deps)) {
+      deps += invoker.cpp_deps
+    }
+    if (defined(invoker.configs)) {
+      configs += invoker.configs
+    }
     public_configs = [
+      ":$_config_target",
+      "//build/rust:cxx_cpp_config",
+    ]
+    all_dependent_configs = [
       ":$_config_target",
       "//build/rust:cxx_cpp_config",
     ]

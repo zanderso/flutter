@@ -37,11 +37,11 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 #include "third_party/dart/runtime/include/dart_tools_api.h"
+#include "third_party/skia/experimental/rust_jpeg/decoder/SkJpegRustDecoder.h"
 #include "third_party/skia/include/codec/SkBmpDecoder.h"
 #include "third_party/skia/include/codec/SkCodec.h"
 #include "third_party/skia/include/codec/SkGifDecoder.h"
 #include "third_party/skia/include/codec/SkIcoDecoder.h"
-#include "third_party/skia/include/codec/SkJpegDecoder.h"
 #include "third_party/skia/include/codec/SkPngDecoder.h"
 #include "third_party/skia/include/codec/SkWbmpDecoder.h"
 #include "third_party/skia/include/codec/SkWebpDecoder.h"
@@ -91,7 +91,7 @@ void RegisterCodecsWithSkia() {
   // the wild" for a very small performance bump, but for now we mirror the
   // order Skia had them in.
   SkCodecs::Register(SkPngDecoder::Decoder());
-  SkCodecs::Register(SkJpegDecoder::Decoder());
+  SkCodecs::Register(SkJpegRustDecoder::Decoder());
   SkCodecs::Register(SkWebpDecoder::Decoder());
   SkCodecs::Register(SkGifDecoder::Decoder());
   SkCodecs::Register(SkBmpDecoder::Decoder());

@@ -98,18 +98,8 @@ config("libjpeg_config") {
 static_library("simd") {
   configs += [ ":libjpeg_config" ]
 
-  if (!is_fuchsia || using_fuchsia_sdk) {
-    sources = [ "$_source_location/jsimd_none.c" ]
-  } else if (current_cpu == "x86") {
-    deps = [ ":simd_asm" ]
-
-    sources = [ "$_source_location/simd/jsimd_i386.c" ]
-  } else if (current_cpu == "x64") {
-    deps = [ ":simd_asm" ]
-
-    sources = [ "$_source_location/simd/jsimd_x86_64.c" ]
-  } else if (current_cpu == "arm" && arm_version >= 7 &&
-             (arm_use_neon || arm_optionally_use_neon)) {
+  if (current_cpu == "arm" && arm_version >= 7 &&
+      (arm_use_neon || arm_optionally_use_neon)) {
     sources = [
       "$_source_location/simd/jsimd_arm.c",
       "$_source_location/simd/jsimd_arm_neon.S",
@@ -119,6 +109,16 @@ static_library("simd") {
       "$_source_location/simd/jsimd_arm64.c",
       "$_source_location/simd/jsimd_arm64_neon.S",
     ]
+  } else if (!is_fuchsia || using_fuchsia_sdk) {
+    sources = [ "$_source_location/jsimd_none.c" ]
+  } else if (current_cpu == "x86") {
+    deps = [ ":simd_asm" ]
+
+    sources = [ "$_source_location/simd/jsimd_i386.c" ]
+  } else if (current_cpu == "x64") {
+    deps = [ ":simd_asm" ]
+
+    sources = [ "$_source_location/simd/jsimd_x86_64.c" ]
   } else {
     sources = [ "$_source_location/jsimd_none.c" ]
   }

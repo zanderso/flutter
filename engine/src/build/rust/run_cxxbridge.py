@@ -18,6 +18,8 @@ def main():
   args = parser.parse_args()
 
   cxxbridge = os.path.abspath(args.cxxbridge)
+  os.makedirs(os.path.dirname(os.path.abspath(args.header)), exist_ok=True)
+  os.makedirs(os.path.dirname(os.path.abspath(args.cc)), exist_ok=True)
   subprocess.run(
       [cxxbridge, args.input, '--header', '-o', args.header], check=True
   )
